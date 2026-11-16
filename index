@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisiones técnicas</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --surf: #ffffff; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781; --line: #e1e0d9;
+    --azul: #2a78d6; --rojo: #d03b3b; --verde: #0ca30c; --ambar: #b97d00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #131312; --surf: #1c1c1a; --ink: #f2f1ec; --ink2: #b9b8b0; --muted: #85847d; --line: #2e2e2b;
+            --azul: #6aa6f0; --rojo: #ee7676; --verde: #4cc94c; --ambar: #e0a526; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 2px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .card { background: var(--surf); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .ctrl { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+  .ctrl label { display: flex; flex-direction: column; font-size: 12px; color: var(--ink2); gap: 4px; }
+  select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf); color: var(--ink); min-width: 120px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--line); background: var(--surf); color: var(--ink2); padding: 6px 12px; border-radius: 999px; font: inherit; font-size: 13px; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--azul); border-color: var(--azul); color: #fff; }
+  .grp { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink2); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--surf); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .kpi .n { font-size: 24px; font-weight: 650; letter-spacing: -0.01em; }
+  .kpi .t { font-size: 12px; color: var(--ink2); }
+  .bar-row { margin: 12px 0; }
+  .bar-name { font-size: 14px; margin-bottom: 4px; }
+  .bar-line { display: flex; align-items: center; gap: 10px; }
+  .bar-track { position: relative; flex: 1; height: 24px; background: color-mix(in srgb, var(--azul) 10%, transparent); border-radius: 6px; }
+  .bar-fill { height: 100%; background: var(--azul); border-radius: 6px; min-width: 2px; }
+  .bar-val { flex: 0 0 auto; min-width: 118px; text-align: right; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .nota { font-size: 12.5px; color: var(--ink2); margin-top: 10px; }
+  .aviso { border-left: 3px solid var(--ambar); padding: 8px 12px; background: color-mix(in srgb, var(--ambar) 10%, transparent); border-radius: 0 8px 8px 0; font-size: 13px; margin-top: 12px; }
+  svg text { font-family: inherit; }
+  #error { display: none; border-left: 3px solid var(--rojo); padding: 12px; background: color-mix(in srgb, var(--rojo) 10%, transparent); border-radius: 0 8px 8px 0; }
+  details { font-size: 13px; color: var(--ink2); }
+  summary { cursor: pointer; }
+  .sr { position: absolute; left: -9999px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Revisiones técnicas</h1>
+  <div class="sub" id="meta">Cargando…</div>
+  <div id="error" role="alert"></div>
+
+  <section class="card" aria-label="Filtros">
+    <div class="ctrl">
+      <label>Desde <select id="desde"></select></label>
+      <label>Hasta <select id="hasta"></select></label>
+      <div class="grp">Atajos
+        <div class="chips">
+          <button class="chip" data-atajo="anio" type="button">Año más reciente</button>
+          <button class="chip" data-atajo="12" type="button">Últimos 12 meses</button>
+          <button class="chip" data-atajo="todo" type="button">Todo</button>
+        </div>
+      </div>
+    </div>
+    <div class="ctrl" style="margin-top:12px">
+      <div class="grp">Tipo de planta <div class="chips" id="tipos"></div></div>
+      <div class="grp">Clase de revisión <div class="chips" id="grupos"></div></div>
+    </div>
+  </section>
+
+  <section class="kpis" id="kpis" aria-live="polite"></section>
+
+  <section class="card">
+    <h2>Top 5 motivos de rechazo</h2>
+    <div id="top5"></div>
+    <div class="nota" id="nota-top5"></div>
+  </section>
+
+  <section class="card">
+    <h2>Tasa de rechazo por mes</h2>
+    <div id="linea"></div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Cómo se calculan los números</summary>
+      <p><b>Rechazo:</b> revisión con resultado «R» en el certificado.</p>
+      <p><b>Motivo:</b> cada estación de inspección (visual, frenos, luces…) marcada «R». Una revisión puede fallar en varias, por eso los porcentajes suman más de 100%.</p>
+      <p><b>Certificado de gases rechazado:</b> rechazos en que ninguna estación figura en «R», pero el certificado de gases sí. Es una inferencia a partir de los datos, no un motivo informado por la planta.</p>
+      <p><b>Tasa de rechazo:</b> rechazos ÷ revisiones con resultado informado.</p>
+    </details>
+  </section>
+</main>
+
+<script>
+"use strict";
+const fmt = new Intl.NumberFormat("es-CL");
+const pct = (x, d = 1) => (x > 0 && x < Math.pow(10, -d - 2) * 5 ? "<" + (Math.pow(10, -d)).toFixed(d).replace(".", ",") + "%" : (x * 100).toFixed(d).replace(".", ",") + "%");
+const $ = id => document.getElementById(id);
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const etiqueta = p => MESES[Number(p.slice(5, 7)) - 1] + " " + p.slice(0, 4);
+
+let D = null, periodos = [], tipos = [], grupos = [];
+const sel = { tipos: new Set(), grupos: new Set() };
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+async function iniciar() {
+  try {
+    const r = await fetch("resumen.json", { cache: "no-cache" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    D = await r.json();
+  } catch (e) {
+    const box = $("error");
+    box.style.display = "block";
+    box.textContent = "No se pudo cargar resumen.json (" + e.message + "). Si abriste el archivo haciendo doble clic, ábrelo desde la URL publicada o con un servidor local.";
+    $("meta").textContent = "";
+    return;
+  }
+  periodos = [...new Set(D.totales.map(r => r[0]))].sort();
+  tipos = [...new Set(D.totales.map(r => r[1]))].sort();
+  grupos = [...new Set(D.totales.map(r => r[2]))].sort();
+  tipos.forEach(t => sel.tipos.add(t));
+  grupos.forEach(g => sel.grupos.add(g));
+
+  for (const id of ["desde", "hasta"]) {
+    $(id).innerHTML = periodos.map(p => `<option value="${p}">${etiqueta(p)}</option>`).join("");
+    $(id).addEventListener("change", () => { normalizar(id); dibujar(); });
+  }
+  chips("tipos", tipos, sel.tipos);
+  chips("grupos", grupos, sel.grupos);
+  document.querySelectorAll("[data-atajo]").forEach(b => b.addEventListener("click", () => atajo(b.dataset.atajo)));
+  $("meta").textContent = `Datos de ${etiqueta(periodos[0])} a ${etiqueta(periodos.at(-1))} · actualizado ${D.generado.slice(0, 10)}`;
+  atajo("anio");
+}
+
+function chips(id, valores, conjunto) {
+  const cont = $(id);
+  cont.innerHTML = "";
+  valores.forEach(v => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = v || "(sin dato)";
+    b.setAttribute("aria-pressed", "true");
+    b.addEventListener("click", () => {
+      if (conjunto.has(v)) { if (conjunto.size > 1) conjunto.delete(v); } else conjunto.add(v);   // siempre queda al menos uno
+      b.setAttribute("aria-pressed", conjunto.has(v));
+      cont.querySelectorAll(".chip").forEach((c, i) => c.setAttribute("aria-pressed", conjunto.has(valores[i])));
+      dibujar();
+    });
+    cont.appendChild(b);
+  });
+}
+
+function normalizar(cambio) {
+  if ($("desde").value > $("hasta").value) {
+    if (cambio === "desde") $("hasta").value = $("desde").value; else $("desde").value = $("hasta").value;
+  }
+}
+
+function atajo(k) {
+  const ultimo = periodos.at(-1);
+  if (k === "todo") { $("desde").value = periodos[0]; $("hasta").value = ultimo; }
+  else if (k === "anio") { const a = ultimo.slice(0, 4); $("desde").value = periodos.find(p => p.startsWith(a)); $("hasta").value = ultimo; }
+  else { $("desde").value = periodos[Math.max(0, periodos.length - 12)]; $("hasta").value = ultimo; }
+  dibujar();
+}
+
+function dibujar() {
+  const d = $("desde").value, h = $("hasta").value;
+  const ok = (p, t, g) => p >= d && p <= h && sel.tipos.has(t) && sel.grupos.has(g);
+  const tot = D.totales.filter(r => ok(r[0], r[1], r[2]));
+  const mot = D.motivos.filter(r => ok(r[0], r[1], r[2]));
+
+  const rev = tot.reduce((a, r) => a + r[3], 0);
+  const conRes = tot.reduce((a, r) => a + r[4], 0);
+  const rech = tot.reduce((a, r) => a + r[5], 0);
+
+  const porMotivo = new Map();
+  mot.forEach(r => porMotivo.set(r[3], (porMotivo.get(r[3]) || 0) + r[4]));
+  const sinCat = porMotivo.get(D.sin_categoria) || 0;
+  porMotivo.delete(D.sin_categoria);
+  const orden = [...porMotivo.entries()].sort((a, b) => b[1] - a[1]);
+
+  $("kpis").innerHTML = [
+    [fmt.format(rev), "Revisiones"],
+    [fmt.format(rech), "Rechazos"],
+    [conRes ? pct(rech / conRes) : "—", "Tasa de rechazo"],
+    [orden.length ? esc(orden[0][0]) : "—", "Motivo principal"],
+  ].map(([n, t]) => `<div class="kpi"><div class="n">${n}</div><div class="t">${t}</div></div>`).join("");
+
+  // Top 5
+  const top = orden.slice(0, 5), max = top.length ? top[0][1] : 1;
+  $("top5").innerHTML = top.length ? top.map(([m, n]) => {
+    const w = Math.max(1, n / max * 100);
+    return `<div class="bar-row"><div class="bar-name">${esc(m)}</div>
+      <div class="bar-line"><div class="bar-track"><div class="bar-fill" style="width:${w}%"></div></div>
+      <div class="bar-val">${fmt.format(n)} · ${rech ? pct(n / rech, 0) : "—"}</div></div></div>`;
+  }).join("") : "<div class='nota'>No hay rechazos con motivo en la selección.</div>";
+  let nota = "El porcentaje es sobre el total de rechazos; una revisión puede tener varios motivos.";
+  if (sinCat && rech) nota += ` ${fmt.format(sinCat)} rechazos (${pct(sinCat / rech)}) no traen ningún motivo registrado y no aparecen aquí.`;
+  $("nota-top5").textContent = nota;
+
+  linea(tot);
+}
+
+let ultimoTot = [];
+function linea(tot) {
+  ultimoTot = tot;
+  const por = new Map();
+  tot.forEach(r => { const a = por.get(r[0]) || [0, 0]; a[0] += r[4]; a[1] += r[5]; por.set(r[0], a); });
+  const pts = [...por.entries()].sort().filter(([, a]) => a[0] > 0).map(([p, a]) => ({ p, v: a[1] / a[0] }));
+  if (!pts.length) { $("linea").innerHTML = "<div class='nota'>Sin datos en la selección.</div>"; return; }
+
+  const W = Math.max(300, $("linea").clientWidth || 640), H = 240, L = 44, R = 20, T = 12, B = 34;
+  const vmax = Math.max(...pts.map(x => x.v)), vmin = Math.min(...pts.map(x => x.v));
+  const hi = Math.min(1, Math.ceil(vmax * 20) / 20 + 0.02), lo = Math.max(0, Math.floor(vmin * 20) / 20 - 0.02);
+  const X = i => pts.length === 1 ? (L + W - R) / 2 : L + i * (W - L - R) / (pts.length - 1);
+  const Y = v => T + (1 - (v - lo) / (hi - lo || 1)) * (H - T - B);
+  let g = "";
+  for (let k = 0; k <= 4; k++) {
+    const v = lo + (hi - lo) * k / 4, y = Y(v);
+    g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${L - 6}" y="${y + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${pct(v, 0)}</text>`;
+  }
+  const paso = Math.max(1, Math.ceil(pts.length / Math.max(2, Math.floor((W - L - R) / 80))));
+  const sepMin = Math.ceil(paso / 2);
+  let ultimaEt = -99;
+  pts.forEach((x, i) => {
+    const esUlt = i === pts.length - 1;
+    if (i % paso === 0 || (esUlt && i - ultimaEt >= sepMin)) {
+      g += `<text x="${X(i)}" y="${H - 12}" text-anchor="${esUlt && pts.length > 1 ? "end" : "middle"}" font-size="11" fill="var(--muted)">${etiqueta(x.p)}</text>`;
+      ultimaEt = i;
+    }
+  });
+  if (pts.length > 1) g += `<polyline fill="none" stroke="var(--azul)" stroke-width="2" points="${pts.map((x, i) => X(i) + "," + Y(x.v)).join(" ")}"/>`;
+  g += pts.map((x, i) => `<circle cx="${X(i)}" cy="${Y(x.v)}" r="${pts.length > 60 ? 0 : 4}" fill="var(--azul)"><title>${etiqueta(x.p)}: ${pct(x.v)}</title></circle>`).join("");
+  const ult = pts.at(-1);
+  $("linea").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Tasa de rechazo mensual, último valor ${pct(ult.v)} en ${etiqueta(ult.p)}">${g}</svg>`;
+}
+
+let rz = 0;
+addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (D) linea(ultimoTot); }, 150); });
+iniciar();
+</script>
+</body>
+</html>
